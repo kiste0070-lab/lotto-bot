@@ -334,14 +334,20 @@ def main():
     user_id = os.environ.get('LOTTO_USER_ID')
     password = os.environ.get('LOTTO_PASSWORD')
     auto_games = int(os.environ.get('LOTTO_AUTO_GAMES', '5'))
-    telegram_token = os.environ.get('TELEGRAM_TOKEN')
-    telegram_chat_id = os.environ.get('TELEGRAM_USER_ID')
+    telegram_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
+    telegram_chat_id = os.environ.get('TELEGRAM_USER_ID', '').strip()
 
     if not user_id or not password:
         logger.error('LOTTO_USER_ID와 LOTTO_PASSWORD 환경변수가 필요합니다.')
+        # 텔레그램 알림 (설정 오류)
+        if telegram_token and telegram_chat_id:
+            send_telegram_message(telegram_token, telegram_chat_id,
+                format_error_message('LOTTO_USER_ID 또는 LOTTO_PASSWORD가 설정되지 않았습니다.'))
         sys.exit(1)
 
     logger.info(f'===== 로또 자동 구매 시작 (게임: {auto_games}) =====')
+    logger.info(f'TELEGRAM_TOKEN 설정됨: {"Yes" if telegram_token else "No"}')
+    logger.info(f'TELEGRAM_USER_ID 설정됨: {"Yes" if telegram_chat_id else "No"}')
 
     try:
         result = auto_purchase(user_id, password, auto_games)
