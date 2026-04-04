@@ -141,14 +141,16 @@ def build_param(auto_games: int) -> str:
     return json.dumps(params)
 
 
+import html
+
 # ===== 텔레그램 알림 =====
-def send_telegram_message(token: str, chat_id: str, message: str) -> bool:
+def send_telegram_message(token: str, chat_id: str, message: str, parse_mode: str = 'HTML') -> bool:
     """텔레그램으로 메시지 전송"""
     url = f'https://api.telegram.org/bot{token}/sendMessage'
     data = urllib.parse.urlencode({
         'chat_id': chat_id,
         'text': message,
-        'parse_mode': 'HTML',
+        'parse_mode': parse_mode,
     }).encode('utf-8')
     req = Request(url, data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'})
     try:
@@ -175,8 +177,9 @@ def format_success_message(result: dict) -> str:
 
 
 def format_error_message(error: str) -> str:
-    """구매 실패 메시지 포맷팅"""
-    return f'❌ <b>[구매실패] 로또 자동 구매</b>\n\n에러: {error}'
+    """구매 실패 메시지 포맷팅 (<, > 등 특수문자 HTML 이스케이프)"""
+    safe_error = html.escape(error)
+    return f'❌ <b>[구매실패] 로또 자동 구매</b>\n\n에러: {safe_error}'
 
 
 # ===== 메인 로직 =====
