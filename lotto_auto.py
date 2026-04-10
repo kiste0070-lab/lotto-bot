@@ -52,7 +52,7 @@ HEADERS = {
 class LottoSession:
     """쿠키를 자동 관리하는 HTTP 세션 + 재시도 로직"""
 
-    def __init__(self, max_retries: int = 5, retry_delay: int = 10):
+    def __init__(self, max_retries: int = 5, retry_delay: int = 15):
         self.cookie_jar = CookieJar()
         self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
         self.max_retries = max_retries
