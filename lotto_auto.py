@@ -52,7 +52,7 @@ HEADERS = {
 class LottoSession:
     """쿠키를 자동 관리하는 HTTP 세션 + 재시도 로직"""
 
-    def __init__(self, max_retries: int = 3, retry_delay: int = 5):
+    def __init__(self, max_retries: int = 5, retry_delay: int = 10):
         self.cookie_jar = CookieJar()
         self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
         self.max_retries = max_retries
@@ -322,7 +322,10 @@ def auto_purchase(user_id: str, password: str, auto_games: int = 5) -> dict:
     verify_resp = session.get(
         f"{BASE_URL}/mypage/selectUserMndp.do",
         headers={"X-Requested-With": "XMLHttpRequest"},
+        timeout=60,  # 로그인 검증은 더 긴 타임아웃
     )
+    if DEBUG_MODE:
+        logger.debug(f"   검증 응답 길이: {len(verify_resp)} bytes")
     # 검증 응답 확인 (간단한 체크)
     logger.info("로그인 검증 완료")
 
