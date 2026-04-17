@@ -6,6 +6,11 @@ GitHub Actions에서 주 1회 실행 (매주 금요일 09:00 KST)
 import os
 import sys
 import json
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 import math
 import random
 import logging
@@ -52,7 +57,7 @@ HEADERS = {
 class LottoSession:
     """쿠키를 자동 관리하는 HTTP 세션 + 재시도 로직"""
 
-    def __init__(self, max_retries: int = 5, retry_delay: int = 30):
+    def __init__(self, max_retries: int = 5, retry_delay: int = 120):
         self.cookie_jar = CookieJar()
         self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
         self.max_retries = max_retries
