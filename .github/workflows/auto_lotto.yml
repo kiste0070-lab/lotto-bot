@@ -8,7 +8,7 @@ on:
 
 jobs:
   purchase:
-    runs-on: windows-latest
+    runs-on: macos-latest
     timeout-minutes: 10
 
     steps:
