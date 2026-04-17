@@ -67,18 +67,31 @@ class LottoSession:
                 if DEBUG_MODE:
                     logger.debug(f"✅ 요청 성공 (시도 {attempt + 1})")
                 return result
-            except URLError as e:
-                last_error = e
+            except HTTPError as e:
+                err_text = ""
+                try:
+                    err_text = e.read().decode("utf-8", errors="replace")
+                except:
+                    pass
+                last_error = f"HTTP {e.code} {e.reason} - {err_text[:100]}"
                 logger.error(
-                    f"❌ 요청 실패 (시도 {attempt + 1}/{self.max_retries}): {e}"
+                    f"❌ HTTP 오류 (시도 {attempt + 1}/{self.max_retries}): {last_error}"
+                )
+                if attempt < self.max_retries - 1:
+                    logger.warning(f"⏳ {self.retry_delay}초 후 재시도...")
+                    time.sleep(self.retry_delay)
+            except URLError as e:
+                last_error = str(e.reason)
+                logger.error(
+                    f"❌ 네트워크 오류 (시도 {attempt + 1}/{self.max_retries}): {last_error}"
                 )
                 if attempt < self.max_retries - 1:
                     logger.warning(f"⏳ {self.retry_delay}초 후 재시도...")
                     time.sleep(self.retry_delay)
             except Exception as e:
-                last_error = e
+                last_error = str(e)
                 logger.error(
-                    f"❌ 예상치 못한 오류 (시도 {attempt + 1}/{self.max_retries}): {type(e).__name__}: {e}"
+                    f"❌ 예상치 못한 오류 (시도 {attempt + 1}/{self.max_retries}): {type(e).__name__}: {last_error}"
                 )
                 if attempt < self.max_retries - 1:
                     logger.warning(f"⏳ {self.retry_delay}초 후 재시도...")
@@ -145,16 +158,71 @@ class LottoSession:
         return self._retry_request(_do_post)
 
     def get_json(self, url, headers=None, referer=None, timeout: int = 30):
-        text = self.get(url, headers=headers, referer=referer, timeout=timeout)
-        return json.loads(text)
+        if DEBUG_MODE:
+            logger.debug(f"📤 GET JSON: {url}")
+            if referer:
+                logger.debug(f"   Referer: {referer}")
+
+        req_headers = dict(HEADERS)
+        if headers:
+            req_headers.update(headers)
+        if referer:
+            req_headers["Referer"] = referer
+
+        def _do_get_json():
+            req = Request(url, headers=req_headers)
+            if DEBUG_MODE:
+                logger.debug(f"   Timeout: {timeout}s")
+            resp = self.opener.open(req, timeout=timeout)
+            response_body = resp.read().decode("utf-8", errors="replace")
+            if DEBUG_MODE:
+                logger.debug(f"   Response length: {len(response_body)} bytes")
+            try:
+                return json.loads(response_body)
+            except json.JSONDecodeError as e:
+                err_snippet = response_body[:100].replace("\n", " ")
+                raise Exception(f"JSON 파싱 실패 (HTML 응답): {err_snippet}... Error: {e}")
+
+        return self._retry_request(_do_get_json)
 
     def post_json(
         self, url, data, headers=None, referer=None, origin=None, timeout: int = 30
     ):
-        text = self.post(
-            url, data, headers=headers, referer=referer, origin=origin, timeout=timeout
-        )
-        return json.loads(text)
+        if DEBUG_MODE:
+            logger.debug(f"📥 POST JSON: {url}")
+            if referer:
+                logger.debug(f"   Referer: {referer}")
+            if origin:
+                logger.debug(f"   Origin: {origin}")
+            logger.debug(f"   Data type: {type(data)}")
+
+        req_headers = dict(HEADERS)
+        if headers:
+            req_headers.update(headers)
+        if referer:
+            req_headers["Referer"] = referer
+        if origin:
+            req_headers["Origin"] = origin
+        if isinstance(data, dict):
+            data = urlencode(data).encode("utf-8")
+        elif isinstance(data, str):
+            data = data.encode("utf-8")
+
+        def _do_post_json():
+            req = Request(url, data=data, headers=req_headers)
+            if DEBUG_MODE:
+                logger.debug(f"   Timeout: {timeout}s")
+            resp = self.opener.open(req, timeout=timeout)
+            response_body = resp.read().decode("utf-8", errors="replace")
+            if DEBUG_MODE:
+                logger.debug(f"   Response length: {len(response_body)} bytes")
+            try:
+                return json.loads(response_body)
+            except json.JSONDecodeError as e:
+                err_snippet = response_body[:100].replace("\n", " ")
+                raise Exception(f"JSON 파싱 실패 (HTML 응답): {err_snippet}... Error: {e}")
+
+        return self._retry_request(_do_post_json)
 
 
 # ===== RSA 암호화 =====
@@ -371,19 +439,13 @@ def auto_purchase(user_id: str, password: str, auto_games: int = 5) -> dict:
         "saleMdaDcd": "10",
     }
 
-    buy_resp = session.post(
+    result = session.post_json(
         f"{OLOTTO_URL}/olotto/game/execBuy.do",
         data=buy_data,
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         referer=f"{OLOTTO_URL}/olotto/game/game645.do",
         origin=OLOTTO_URL,
     )
-
-    # 응답 파싱
-    try:
-        result = json.loads(buy_resp)
-    except json.JSONDecodeError:
-        raise Exception(f"구매 실패: 세션 만료 (HTML 응답). 재로그인 필요.")
 
     result_data = result.get("result", {})
     result_code = result_data.get("resultCode", "")
